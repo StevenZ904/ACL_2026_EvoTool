@@ -21,6 +21,8 @@ execution (AST matching only — the chosen calls are recorded with no observati
 
 from __future__ import annotations
 
+import os
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
 from src.env import registry
@@ -143,7 +145,21 @@ def run_episode(client: LLMClient, policy: Policy, instance: dict, max_steps: in
 def mean_reward(client: LLMClient, policy: Policy, instances: list[dict], max_steps: int) -> float:
     if not instances:
         return 0.0
-    return sum(run_episode(client, policy, x, max_steps).reward for x in instances) / len(instances)
+    episodes = run_episodes(client, policy, instances, max_steps)
+    return sum(episode.reward for episode in episodes) / len(episodes)
+
+
+def run_episodes(client: LLMClient, policy: Policy, instances: list[dict], max_steps: int) -> list[Episode]:
+    """Evaluate independent instances in-order, optionally using worker threads.
+
+    This changes only execution scheduling. Policy outputs, cache keys, rewards, and
+    returned ordering are identical to the serial path used by the released code.
+    """
+    concurrency = max(1, int(os.environ.get("EVOTOOL_EVAL_CONCURRENCY", "1")))
+    if concurrency == 1 or len(instances) < 2:
+        return [run_episode(client, policy, instance, max_steps) for instance in instances]
+    with ThreadPoolExecutor(max_workers=min(concurrency, len(instances))) as executor:
+        return list(executor.map(lambda x: run_episode(client, policy, x, max_steps), instances))
 
 
 def _error_count(ep: Episode) -> int:

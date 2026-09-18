@@ -23,7 +23,7 @@ from src.evolve.loop import evolve
 from src.evolve.select import best_policy
 from src.llm.client import LLMClient
 from src.metrics import headline_score, success_rate
-from src.policy.agent import route_episode, run_episode
+from src.policy.agent import route_episode, run_episodes
 from src.runlog import RunLog
 
 BASE_CONFIG = "configs/base.yaml"
@@ -91,11 +91,12 @@ def main() -> None:
     # kept ONLY as the named optional ablation evolve.test_ensemble (never headline).
     if cfg.evolve.test_ensemble:
         deployed_ids = [p.policy_id for p in population]
+        theta_star = None
         episodes = [route_episode(client, population, x, cfg.max_steps) for x in test]
     else:
         theta_star = best_policy(client, cfg, population, sel)
         deployed_ids = [theta_star.policy_id]
-        episodes = [run_episode(client, theta_star, x, cfg.max_steps) for x in test]
+        episodes = run_episodes(client, theta_star, test, cfg.max_steps)
     success = success_rate([e.success for e in episodes])
     mean_reward = headline_score([e.reward for e in episodes])
     elapsed = time.time() - t0
@@ -132,6 +133,16 @@ def main() -> None:
         "test_ensemble": cfg.evolve.test_ensemble,        # §7: default single Theta*
         "deployed_policy_ids": deployed_ids,              # what actually ran at test
     }
+    if theta_star is not None:
+        result["deployed_policy"] = {
+            "policy_id": theta_star.policy_id,
+            "modules": {
+                "planner": theta_star.planner,
+                "selector": theta_star.selector,
+                "caller": theta_star.caller,
+                "synthesizer": theta_star.synthesizer,
+            },
+        }
     print(f"--> success={result['success_rate']} mean_reward={result['mean_reward']} "
           f"tokens={result['tokens']} time={result['seconds']}s")
 
@@ -155,6 +166,27 @@ def main() -> None:
     with open(out, "w") as f:
         json.dump(result, f, indent=2)
     print(f"saved -> {out}")
+
+    if theta_star is not None:
+        artifact = {
+            "benchmark": cfg.benchmark,
+            "policy_id": theta_star.policy_id,
+            "modules": result["deployed_policy"]["modules"],
+            "provenance": {
+                "backbone": cfg.llm.model_name,
+                "seed": cfg.seed,
+                "epochs": cfg.evolve.epochs,
+                "batch_size": cfg.evolve.batch_size,
+                "n_train": len(train),
+                "n_sel": len(sel),
+                "n_test": len(test),
+                "result": out,
+            },
+        }
+        artifact_path = os.path.splitext(out)[0] + ".theta_star.json"
+        with open(artifact_path, "w") as f:
+            json.dump(artifact, f, indent=2)
+        print(f"policy -> {artifact_path}")
 
 
 if __name__ == "__main__":

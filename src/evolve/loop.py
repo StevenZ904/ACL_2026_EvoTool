@@ -25,7 +25,7 @@ from src.evolve.blame import blame
 from src.evolve.diagnostics import extract_diagnostics
 from src.evolve.mutate import monolithic_mutate, mutate
 from src.llm.client import LLMClient
-from src.policy.agent import Episode, mean_reward, run_episode
+from src.policy.agent import Episode, mean_reward, run_episodes
 from src.policy.modules import MODULES, Policy, initial_policy
 
 
@@ -156,7 +156,7 @@ def evolve(client: LLMClient, cfg: EvoToolConfig, train: list[dict], sel: list[d
 
         parent = _sample_parent(
             population, _parent_weights(ev.parent_select, weights, sel_means, population), rng)
-        episodes = [run_episode(client, parent, x, cfg.max_steps) for x in batch]
+        episodes = run_episodes(client, parent, batch, cfg.max_steps)
         diag_list = [extract_diagnostics(e, e.instance) for e in episodes]
 
         rep, rep_diag = _representative(episodes, diag_list)

@@ -1,10 +1,10 @@
 """Reproducible converter: tau-bench RETAIL real tasks -> 150-instance samples.json.
 
 Source (real data, no fabrication):
-  tau-bench checkout retail task files (Task/Action python literals):
-    tau_bench/envs/retail/tasks_train.py   (TASKS_TRAIN, ~500 tasks)
-    tau_bench/envs/retail/tasks_test.py    (TASKS_TEST,  ~115 tasks)
-    tau_bench/envs/retail/tasks_dev.py     (TASKS_DEV,   ~20 tasks)
+  tau_bench/envs/retail/tasks_train.py (TASKS_TRAIN, ~500 tasks).
+
+Test and dev tasks are deliberately excluded so the evolved policy can be
+evaluated on the official Retail test split without task overlap.
 
 Each upstream Task has: user_id, instruction, actions=[Action(name=..., kwargs=...)].
 We map it to the repo unified schema:
@@ -108,12 +108,7 @@ def main():
     tools = load_template_tools()
     assert len(tools) == 15, f"expected 15 retail tools, got {len(tools)}"
 
-    # Deterministic source order: test (canonical eval set) -> train -> dev.
-    sources = [
-        ("tasks_test.py", "TASKS_TEST"),
-        ("tasks_train.py", "TASKS_TRAIN"),
-        ("tasks_dev.py", "TASKS_DEV"),
-    ]
+    sources = [("tasks_train.py", "TASKS_TRAIN")]
     all_tasks = []
     for fn, var in sources:
         ts = load_tasks(fn, var)
@@ -147,11 +142,13 @@ def main():
         selected.append(inst)
 
     print(f"  selected={len(selected)}  skipped(no-actions/gold-fail)={skipped}")
+    if len(selected) != TARGET:
+        raise RuntimeError(f"expected {TARGET} valid training tasks, found {len(selected)}")
 
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w", encoding="utf-8") as f:
         json.dump(selected, f, indent=2)
-    print(f"  wrote {len(selected)} instances -> {OUT}")
+    print(f"  wrote {len(selected)} train-only instances -> {OUT}")
 
 
 if __name__ == "__main__":

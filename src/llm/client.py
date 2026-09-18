@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
 from typing import Optional
 
 from src.config import LLMConfig
@@ -23,6 +24,7 @@ class LLMClient:
         api_key = config.api_key or os.environ.get("OPENAI_API_KEY") or "EMPTY"
         self.client = OpenAI(base_url=base_url, api_key=api_key)
         self.total_tokens = 0  # cumulative prompt+completion tokens this run
+        self._token_lock = threading.Lock()
 
     def generate(
         self,
@@ -56,7 +58,8 @@ class LLMClient:
             else:
                 raise
         if getattr(resp, "usage", None):
-            self.total_tokens += resp.usage.total_tokens or 0
+            with self._token_lock:
+                self.total_tokens += resp.usage.total_tokens or 0
         return resp.choices[0].message.content or ""
 
     def generate_json(self, messages: list[dict[str, str]]) -> dict:

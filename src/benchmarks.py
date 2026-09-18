@@ -34,6 +34,7 @@ def _normalize(item: dict) -> dict:
         "mock_outputs": item.get("mock_outputs") or {},
         "required_token": item.get("required_token"),  # None for real data
         "metric": item.get("metric") or "score",
+        "data_split": item.get("data_split"),
     }
     return out
 
@@ -131,6 +132,19 @@ def split_instances(instances: list[dict], cfg: EvoToolConfig) -> tuple[list, li
     reported score measures generalization rather than memorized training instances.
     For 150-instance datasets the default 90/30/30 split partitions the data exactly.
     """
+    explicit = [x for x in instances if x.get("data_split")]
+    if explicit:
+        train = [x for x in instances if x.get("data_split") == "train"]
+        sel = [x for x in instances if x.get("data_split") in {"sel", "dev"}]
+        test = [x for x in instances if x.get("data_split") == "test"]
+        if len(train) != cfg.n_train or len(sel) != cfg.n_sel or len(test) != cfg.n_test:
+            raise ValueError(
+                "explicit split counts do not match config: "
+                f"data=({len(train)}, {len(sel)}, {len(test)}) "
+                f"config=({cfg.n_train}, {cfg.n_sel}, {cfg.n_test})"
+            )
+        return train, sel, test
+
     rng = random.Random(cfg.seed)
     items = list(instances)
     rng.shuffle(items)

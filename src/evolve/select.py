@@ -14,14 +14,15 @@ from __future__ import annotations
 
 from src.config import EvoToolConfig
 from src.llm.client import LLMClient
-from src.policy.agent import run_episode
+from src.policy.agent import run_episodes
 from src.policy.modules import Policy
 
 
 def _reward_matrix(client, population, sel_set, max_steps) -> list[list[float]]:
     # rows = policies, cols = selection instances (episodes are cached, so this
     # only actually runs LLM calls for policy/instance pairs not seen before).
-    return [[run_episode(client, p, x, max_steps).reward for x in sel_set] for p in population]
+    return [[episode.reward for episode in run_episodes(client, p, sel_set, max_steps)]
+            for p in population]
 
 
 def _avg(row: list[float]) -> float:

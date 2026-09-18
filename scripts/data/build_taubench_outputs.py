@@ -38,7 +38,7 @@ RETAIL = None  # set in main() from --tau-repo / TAU_BENCH_REPO
 # Canonical upstream source files (same set build_taubench.py drew from). tasks.py is
 # a concatenation of these, so we read the split files to avoid double-loading and
 # prefer a non-empty outputs list on the rare duplicate instruction.
-SOURCES = ["tasks_test.py", "tasks_train.py", "tasks_dev.py"]
+SOURCES = ["tasks_train.py"]
 
 
 class Action:
@@ -105,6 +105,9 @@ def main():
             if outs:
                 nonempty += 1
         result[it["id"]] = outs
+
+    if unmatched:
+        raise RuntimeError(f"{unmatched} samples did not match the Retail training split")
 
     with open(OUT, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2, ensure_ascii=False)
